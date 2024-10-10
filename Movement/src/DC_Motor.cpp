@@ -3,16 +3,14 @@
 #include "Wire.h"
 
 // Constructor of the MotorDC class
-MotorDC::MotorDC(const int ENCA, const int ENCB, const int PWM, const int IN1, const int IN2) {
+MotorDC::MotorDC(const int ENCA, const int ENCB, const int RPWM, const int LPWM) {
     this->ENCA = ENCA;
     this->ENCB = ENCB;
-    this->PWM = PWM;
-    this->IN1 = IN1;
-    this->IN2 = IN2;
+    this->RPWM = RPWM;
+    this->LPWM = LPWM;
     pinMode(ENCA, INPUT);
-    pinMode(PWM, OUTPUT);
-    pinMode(IN1, OUTPUT);
-    pinMode(IN2, OUTPUT);
+    pinMode(RPWM, OUTPUT);
+    pinMode(LPWM, OUTPUT);
 }
 
 void MotorDC::configure(int ticks_per_revolution, float kp, float ki, float kd) {
@@ -24,9 +22,16 @@ void MotorDC::configure(int ticks_per_revolution, float kp, float ki, float kd) 
 
 void MotorDC::turn_on_motor(Direction direction, int pwmVal) {
     dir = direction;
-    analogWrite(PWM, pwmVal);
-    digitalWrite(IN1, dir == FORWARD);
-    digitalWrite(IN2, dir == REVERSE);
+    if (dir == FORWARD) {
+        analogWrite(RPWM, pwmVal);  // Set PWM value on RPWM for forward motion
+        analogWrite(LPWM, 0);       // Stop reverse motion by setting LPWM to 0
+    } else if (dir == REVERSE) {
+        analogWrite(RPWM, 0);       // Stop forward motion by setting RPWM to 0
+        analogWrite(LPWM, pwmVal);  // Set PWM value on LPWM for reverse motion
+    } else if (dir == STOP) {
+        analogWrite(RPWM, 0);       // Stop both directions
+        analogWrite(LPWM, 0);
+    }
 }
 
 void MotorDC::read_encoder() {
