@@ -12,8 +12,8 @@
 const int Front_en = 1;
 const int Front_RPWM = 1;
 const int Front_LPWM = 1;
-const int EncA_F;
-const int EncB_F;
+const int EncA_F = 1 ;
+const int EncB_F = 1;
 
 MotorDC FM(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
 
@@ -21,8 +21,8 @@ MotorDC FM(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
 const int Right_en = 1;
 const int Right_RPWM = 1;
 const int Right_LPWM = 1;
-const int EncA_R;
-const int EncB_R;
+const int EncA_R = 1;
+const int EncB_R = 1;
 
 MotorDC RM(EncA_R, EncB_R, Right_RPWM, Right_LPWM);
 
@@ -30,48 +30,43 @@ MotorDC RM(EncA_R, EncB_R, Right_RPWM, Right_LPWM);
 const int Left_en = 1;
 const int Left_RPWM = 1;
 const int Left_LPWM = 1;
-const int EncA_L;
-const int EncB_L;
+const int EncA_L = 1;
+const int EncB_L = 1;
 MotorDC LM(EncA_L, EncB_L, Left_RPWM, Left_LPWM);
 
 // Motor back
 const int Back_en = 1;
 const int Back_RPWM = 1;
 const int Back_LPWM = 1;
-const int EncA_B;
-const int EncB_B;
+const int EncA_B = 1;
+const int EncB_B = 1;
 MotorDC BM(EncA_B, EncB_B, Back_RPWM, Back_LPWM);
 
 // claw
-const int Claw_en = 1;
-const int Claw_RPWM = 1;
-const int Claw_LPWM = 1;
-const int EncA_Claw;
-const int EncB_Claw;
-MotorDC FLM(EncA_Claw, EncB_Claw, Claw_RPWM, Claw_LPWM);
+const int Servo1 = 9;
+Servo claw;
 
 // Fork lift
-const int IN1;
-const int IN2;
-const int IN3;
-const int IN4;
+const int IN1 = 1;
+const int IN2 = 1;
+const int IN3 = 1;
+const int IN4 = 1;
 const int StepPerRevolution = 2048;
 Stepper ForkLift(StepPerRevolution,IN1,IN2,IN3,IN4);
 
 // Gyro
-const int SCL = 1;
-const int SDA = 1;
+
 
 // ULtrassonic Sensor
 
 const int Front1_trig = 1;
 const int Front1_echo = 1;
 Sensor F1(Front1_trig, Front1_echo);
-const int Front2_trig = 1;
-const int Front2_echo = 1;
+const int Front2_trig = 51;
+const int Front2_echo = 53;
 Sensor F2(Front2_trig, Front2_echo);
-const int Front3_trig = 1;
-const int Front3_echo = 1;
+const int Front3_trig = 42;
+const int Front3_echo = 40;
 Sensor F3(Front3_trig, Front3_echo);
 
 const int Right1_trig = 1;
@@ -86,15 +81,15 @@ const int Left1_echo = 1;
 Sensor L1(Left1_trig, Left1_trig);
 const int Left2_trig = 1;
 const int Left2_echo = 1;
-Sensor L1(Left2_trig, Left2_trig);
+Sensor L2(Left2_trig, Left2_trig);
 
 
 const int Back1_trig = 1;
 const int Back1_echo = 1;
-Sensor L1(Back1_trig, Back1_echo);
+Sensor L3(Back1_trig, Back1_echo);
 const int Back2_trig = 1;
 const int Back2_echo = 1;
-Sensor L1(Back2_trig, Back2_echo);
+Sensor L4(Back2_trig, Back2_echo);
 
 
 // Infra 
@@ -109,27 +104,44 @@ IRSensor IR_L(infra_Left);
 
 
 // Color Sensor
-const int S0;
-const int S1;
-const int S2;
-const int S3;
-const int Out;
+const int S0 = 1;
+const int S1 = 1;
+const int S2 = 1;
+const int S3 = 1;
+const int Out = 1;
 
 ColorSensor color_front(S0,S1,S2,S3,Out);
 
 
 
 void setup() {
-
+  claw.attach(Servo1);
   pinMode(Right_en, OUTPUT);
   pinMode(Left_en, OUTPUT);
   digitalWrite(Right_en, HIGH);
   digitalWrite(Left_en, HIGH);
   Serial1.begin(9600);
+
+  pinMode(13, OUTPUT);
+  pinMode(12, OUTPUT);
+  pinMode(11, OUTPUT);
+  pinMode(10, OUTPUT);
+  pinMode(9, OUTPUT);
+  pinMode(8, OUTPUT);
+  pinMode(7, OUTPUT);
+  pinMode(6,OUTPUT);
+  pinMode(5, OUTPUT);
+
 }
 
 void loop() {
-  RM.turn_on_motor(FORWARD,255);
-  LM.turn_on_motor(FORWARD,255);
-
+  digitalWrite(13, 255); 
+  digitalWrite(11, 255);
+  digitalWrite(9, 255);
+  digitalWrite(6, 20);
+  digitalWrite(12, 0); 
+  digitalWrite(10, 0);
+  digitalWrite(8, 0);
+  digitalWrite(5, 0);
+  
 }
