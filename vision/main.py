@@ -1,120 +1,126 @@
 import cv2
-import apriltag
 import numpy as np
-import threading
+import serial
 import time
+import apriltag
 
-class CameraStream:
-    def __init__(self, width=640, height=480, fps=15):
-        self.cap = cv2.VideoCapture(1)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.cap.set(cv2.CAP_PROP_FPS, fps)
-        
-        self.ret, self.frame = self.cap.read()
-        self.stopped = False
+# Parâmetros da conexão serial
+SERIAL_PORT = '/dev/ttyS0'  # Altere para a porta correta
+BAUD_RATE = 250000
 
-    def start(self):
-        threading.Thread(target=self.update, args=()).start()
-        return self
+# Inicia a comunicação serial
+try:
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    time.sleep(2)  # Aguarda a inicialização da conexão
+    print("Conexão serial estabelecida.")
+except serial.SerialException as e:
+    print(f"Falha ao estabelecer conexão serial: {e}")
+    exit(1)
 
-    def update(self):
-        while not self.stopped:
-            self.ret, self.frame = self.cap.read()
+# Inicia a visão
+camera = cv2.VideoCapture(0)
+if not camera.isOpened():
+    print("Erro ao acessar a câmera.")
+    exit(1)
 
-    def read(self):
-        return self.frame
+# Ajusta a resolução
+camera.set(3, 640)  # Largura
+camera.set(4, 480)  # Altura
 
-    def stop(self):
-        self.stopped = True
-        self.cap.release()
+# Definir área mínima para componentes
+MIN_AREA = 1000  
 
-def detect_apriltags(frame, detector):
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    tags = detector.detect(gray)
-    
-    for tag in tags:
-        print(f"Detected tag ID: {tag.tag_id}")
-        corners = [(int(pt[0]), int(pt[1])) for pt in tag.corners]
-        for i in range(len(corners)):
-            cv2.line(frame, corners[i], corners[(i + 1) % len(corners)], (0, 255, 0), 2)
-        
-        center = (int(tag.center[0]), int(tag.center[1]))
-        cv2.putText(frame, str(tag.tag_id), center, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-    
-    return frame
+# Kernel para operações morfológicas
+kernel = np.ones((5, 5), np.uint8)
 
-last_detection_time = 0
-debounce_interval = 2  # seconds
+# Configuração para detector de AprilTags
+detector = apriltag.Detector()
 
-def detect_strips(frame):
-    global last_detection_time
-    current_time = time.time()
+def create_red_mask(hsv_frame):
+    """Cria máscara para detecção de vermelho."""
+    lower_red_1 = np.array([0, 130, 70])
+    upper_red_1 = np.array([10, 255, 255])
+    mask1 = cv2.inRange(hsv_frame, lower_red_1, upper_red_1)
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_red_2 = np.array([170, 130, 70])
+    upper_red_2 = np.array([180, 255, 255])
+    mask2 = cv2.inRange(hsv_frame, lower_red_2, upper_red_2)
 
-    lower_red1 = np.array([0, 100, 100])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([160, 100, 100])
-    upper_red2 = np.array([180, 255, 255])
-    lower_white = np.array([0, 0, 200])
-    upper_white = np.array([180, 55, 255])
+    return cv2.add(mask1, mask2)
 
-    mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    mask_red = mask_red1 | mask_red2
-    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+frame_count = 0  # Contador de quadros
 
-    mask = cv2.bitwise_or(mask_red, mask_white)
-
-    blurred_mask = cv2.GaussianBlur(mask, (5, 5), 0)
-    kernel = np.ones((5, 5), np.uint8)
-    morphed_mask = cv2.morphologyEx(blurred_mask, cv2.MORPH_CLOSE, kernel)
-    morphed_mask = cv2.morphologyEx(morphed_mask, cv2.MORPH_OPEN, kernel)
-
-    contours, _ = cv2.findContours(morphed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    tape_detected = False
-    for contour in contours:
-        if cv2.contourArea(contour) > 500:
-            x, y, w, h = cv2.boundingRect(contour)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            tape_detected = True
-
-    if tape_detected and (current_time - last_detection_time > debounce_interval):
-        print("tape")
-        last_detection_time = current_time
-
-    return frame
-
-
-def main():
-    options = apriltag.DetectorOptions(
-        families="tag36h11",
-        border=1,
-        nthreads=1,
-        quad_decimate=1.0,
-    )
-    detector = apriltag.Detector(options)
-    
-    camera = CameraStream().start()
-    
+try:
     while True:
-        frame = camera.read()
-        
-        # Detect AprilTags and draw bounding boxes
-        frame = detect_apriltags(frame, detector)
-        
-        # Detect strips on the original color frame
-        #frame = detect_strips(frame)
-        
-        cv2.imshow('Detection', frame)
-        
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    
-    camera.stop()
-    cv2.destroyAllWindows()
+        frame_count += 1
+        status, frame = camera.read()
 
-if __name__ == "__main__":
-    main()
+        if not status:
+            print("Erro ao capturar imagem.")
+            break
+
+        # Processa a cada 3 quadros
+        if frame_count % 3 == 0:
+            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            
+            red_mask = create_red_mask(hsv_frame)
+            white_mask = cv2.inRange(hsv_frame, np.array([0, 0, 180]), np.array([180, 50, 255]))
+            
+            # Operações morfológicas
+            red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
+            white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_CLOSE, kernel)
+
+            # Encontra contornos do vermelho
+            contours_red, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            red_components = [contour for contour in contours_red if cv2.contourArea(contour) > MIN_AREA]
+
+            # Verifica se a máscara branca foi detectada
+            white_detected = np.sum(white_mask) > 0
+
+            # Converte o quadro para escala de cinza para a detecção de AprilTags
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            tags = detector.detect(gray_frame)
+
+            if len(tags) > 0:
+                print("AprilTag(s) detectada(s):")
+                for tag in tags:
+                    tag_id = tag.tag_id
+                    print(f"ID da AprilTag detectada: {tag_id}")
+                    try:
+                        # Envia o ID da tag para o Arduino como string, seguida por '\n' para indicar o fim da mensagem
+                        ser.write(f'{tag_id}\n'.encode('utf-8'))
+                        print(f"ID '{tag_id}' enviado para o Arduino.")
+                    except serial.SerialException:
+                        print("Falha ao enviar o ID da tag para o Arduino.")
+            elif len(red_components) >= 3 and white_detected:
+                print("Fita zebra detectada.")
+                try:
+                    ser.write(b'V\n')
+                    print("Mensagem 'V' enviada para o Arduino.")
+                except serial.SerialException:
+                    print("Falha ao enviar mensagem para o Arduino.")
+            #else:
+             #   print("Fita zebra não detectada ou incompleta.")
+             #   try:
+              #      ser.write(b'S\n')
+               #     print("Mensagem 'S' enviada para o Arduino.")
+               # except serial.SerialException:
+               #     print("Falha ao enviar mensagem para o Arduino.")
+
+            # Ler resposta do Arduino
+            if ser.in_waiting > 0:
+                try:
+                    response = ser.readline().decode('utf-8').strip()
+                    print(f"Mensagem recebida do Arduino: {response}")
+                except serial.SerialException:
+                    print("Erro ao ler resposta do Arduino.")
+
+        if cv2.waitKey(1) == 27:  # Finaliza ao pressionar ESC
+            break
+
+finally:
+    # Fechar a conexão com a câmera e a comunicação serial
+    camera.release()
+    cv2.destroyAllWindows()
+    ser.close()
+    print("Recursos liberados com sucesso.")
