@@ -293,13 +293,18 @@ void Finish(bool shelve){
 }
 
 
-void loop() {
 
+void case_base(){
   Start();
   int bifurcation = 1; 
   follow_line(bifurcation);
   //  Insert here the desired table
+  // Usually were gonna have more than 1 table,
   bool shelve = false;
   Finish(shelve);
+}
+
+void loop() {
+  //Testing the infra red 
 
 }
