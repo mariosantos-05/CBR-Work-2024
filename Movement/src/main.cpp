@@ -121,7 +121,7 @@ String receivedData = ""; // Armazena a mensagem recebida
 
 const int QUARTER_TURN  = 1000;
 const int HALF_TURN = 10000;
-const int FULL_TURN = 100000;
+const long FULL_TURN = 100000;
 const int RUN_TIME = 1000;
 
 void setup() {
@@ -233,6 +233,7 @@ String Rasp_Data(){
             receivedData = "";
         }
     }
+    return receivedData;
 }
 
 void service_table(){
