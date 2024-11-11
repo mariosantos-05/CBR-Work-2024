@@ -95,10 +95,34 @@ IRSensor IR_L(infra_Left);
 
 // Color Sensor
 const int S0 = 1;
-const int S1 = 1;
-const int S2 = 1;
-const int S3 = 1;
-const int Out = 1;
+const int S1 = 2;
+const int S2 = 5;
+const int S3 = 6;
+const int Out = 4;
+
+ColorSensor color_FL(S0,S1,S2,S3,Out);
+
+const int S0 = 1;
+const int S1 = 2;
+const int S2 = 5;
+const int S3 = 6;
+const int Out = 4;
+
+ColorSensor color_FC(S0,S1,S2,S3,Out);
+const int S0 = 1;
+const int S1 = 2;
+const int S2 = 5;
+const int S3 = 6;
+const int Out = 4;
+
+ColorSensor color_FR(S0,S1,S2,S3,Out);
+
+// Color Sensor
+const int S0 = 1;
+const int S1 = 2;
+const int S2 = 5;
+const int S3 = 6;
+const int Out = 4;
 
 ColorSensor color_Clawn(S0,S1,S2,S3,Out);
 
@@ -181,12 +205,28 @@ void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x ) {
 
 void setup() {
   Serial.begin(9600);
+  color_Clawn.begin();
 }
 
 void follow_line(int entrance){
-  int L = IR_L.isLineDetected();
-  int C = IR_C.isLineDetected();
-  int R = IR_R.isLineDetected();
+  int r1, g1, b1;
+  int r2, g2, b2;
+  int r3, g3, b3;
+
+  int L, C, R;
+
+  color_FL.readColor(&r1, &g1, &b1);
+  color_FC.readColor(&r2, &g2, &b2);
+  color_FR.readColor(&r3, &g3, &b3);
+
+  if(r1 >= 8) L = 1;
+  else L = 0;
+
+  if(r2 >= 8) C = 1;
+  else C = 0;
+
+  if(r3 >= 8) R = 1;
+  else R = 0;
 
   if (L == 0 && C == 1 && R == 0) {
 
@@ -304,5 +344,16 @@ void case_base(){
 }
 
 void loop(){
+
+  int ri, g, b;
+  color_Clawn.readColor(&ri,&g,&b);
+
+  if(ri >= 8){
+    Serial.println("EH LINHA PORRA, BORA BORA");
+  }
+  else{
+    Serial.println("Eh esse branco vei paia...");
+  }
+
 
 }
