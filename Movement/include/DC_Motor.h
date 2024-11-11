@@ -19,6 +19,7 @@ public:
     void read_encoder();
     void reset_encoder();
     void move_straight(int velocity_rpm);
+    void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x );
     
     volatile double posi; // motor position in encoder ticks
     double rps = 0; // current speed of the motor in rotations per second
