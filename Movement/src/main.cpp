@@ -5,6 +5,8 @@
 #include <Ultrassonic_Sensor.h>
 #include <IRSensor.h>
 #include <SoftwareSerial.h>
+#include "L298N.h"
+#include <cor2.h>
 
 
 // Definiçao de portas    (orientação baseada na garra)
@@ -39,110 +41,58 @@ const int EncA_B = 1;
 const int EncB_B = 1;
 MotorDC BM(EncA_B, EncB_B, Back_RPWM, Back_LPWM);
 
-// claw
-const int Servo1 = 13;
-Servo claw;
-
-
-
-// Gyro
-
-
 // ULtrassonic Sensor
 
-const int Front1_trig = 30;
-const int Front1_echo = 32;
-Sensor F1(Front1_trig, Front1_echo);
-const int Front2_trig = 29;
-const int Front2_echo = 31;
-Sensor F2(Front2_trig, Front2_echo);
-const int Front3_trig = 25;
-const int Front3_echo = 27;
-Sensor F3(Front3_trig, Front3_echo);
+Sensor F1(A1, A0);
 
-const int Right1_trig = 1;
-const int Right1_echo = 1;
-Sensor R1(Right1_trig, Right1_echo);
-const int Right2_trig = 1;
-const int Right2_echo = 1;
-Sensor R2(Right2_trig, Right2_echo);
+Sensor F2(A3, A2);
 
-const int Left1_trig = 1;
-const int Left1_echo = 1;
-Sensor L1(Left1_trig, Left1_trig);
-const int Left2_trig = 1;
-const int Left2_echo = 1;
-Sensor L2(Left2_trig, Left2_trig);
+Sensor F3(A5, A4);
+
+Sensor R1(A11, A10);
+
+Sensor R2I(A13, A12);
+
+Sensor R2(A15, A14);
+
+Sensor L1(A7, A6);
+
+Sensor L2(A9, A8);
 
 
-const int Back1_trig = 1;
-const int Back1_echo = 1;
-Sensor L3(Back1_trig, Back1_echo);
-const int Back2_trig = 1;
-const int Back2_echo = 1;
-Sensor L4(Back2_trig, Back2_echo);
 
-// Infra 
-
-const int infra_Right = 68;
-const int infra_Center = 66;
-const int infra_Left = 64;
-
-IRSensor IR_R(infra_Right);
-IRSensor IR_C(infra_Center);
-IRSensor IR_L(infra_Left);
-
+const int claw_trig = 37;
+const int claw_echo = 39;
+Sensor claw_sensor(claw_trig, claw_echo);
 
 // Color Sensor
-const int S0 = 1;
-const int S1 = 2;
-const int S2 = 5;
-const int S3 = 6;
-const int Out = 4;
 
-ColorSensor color_FL(S0,S1,S2,S3,Out);
+SensorCorTCS230 teste_Dir(49, 51, 45, 43, 47);
+SensorCorTCS230 teste_Cent(40, 38, 34, 42, 36);
+SensorCorTCS230 teste_Esq(50, 52, 48, 44, 46);
+SensorCorTCS230 claw_Color(29, 31, 25, 23, 27);
 
-const int S0 = 1;
-const int S1 = 2;
-const int S2 = 5;
-const int S3 = 6;
-const int Out = 4;
 
-ColorSensor color_FC(S0,S1,S2,S3,Out);
-const int S0 = 1;
-const int S1 = 2;
-const int S2 = 5;
-const int S3 = 6;
-const int Out = 4;
-
-ColorSensor color_FR(S0,S1,S2,S3,Out);
-
-// Color Sensor
-const int S0 = 1;
-const int S1 = 2;
-const int S2 = 5;
-const int S3 = 6;
-const int Out = 4;
-
-ColorSensor color_Clawn(S0,S1,S2,S3,Out);
-
-const int SF0 = 1;
-const int SF1 = 1;
-const int SF2 = 1;
-const int SF3 = 1;
-const int OutF = 1;
-
-ColorSensor color_front(SF0,SF1,SF2,SF3,OutF);
-
+L298N motor(3, 2);
 
 // Global Variables
 SoftwareSerial raspy(10, 11);
 String receivedData = ""; // Armazena a mensagem recebida
 
+Servo claw;
+
 const int QUARTER_TURN  = 1000;
 const int HALF_TURN = 10000;
 const long FULL_TURN = 100000;
 const int RUN_TIME = 1000;
+const int PWM_X = 70;
+const int PWM_Y = 70;
+const int OPEN = 0;
+const int CLOSED = 100;
+const int CUBE = 10;
+const int Limite_E = 35;
+const int Limite_D = 35;
+const int Limite_e = 35;
 float R = 0.15;
 
 
@@ -203,58 +153,6 @@ void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x ) {
 
 }
 
-void setup() {
-  Serial.begin(9600);
-  color_Clawn.begin();
-}
-
-void follow_line(int entrance){
-  int r1, g1, b1;
-  int r2, g2, b2;
-  int r3, g3, b3;
-
-  int L, C, R;
-
-  color_FL.readColor(&r1, &g1, &b1);
-  color_FC.readColor(&r2, &g2, &b2);
-  color_FR.readColor(&r3, &g3, &b3);
-
-  if(r1 >= 8) L = 1;
-  else L = 0;
-
-  if(r2 >= 8) C = 1;
-  else C = 0;
-
-  if(r3 >= 8) R = 1;
-  else R = 0;
-
-  if (L == 0 && C == 1 && R == 0) {
-
-    calc_speed(1, 0, 0, 80);
-  }
-  else if (L == 1 && C == 0 && R == 0) {
-
-    calc_speed(0.5, 0.5, 0, 80);
-  }
-  else if (L == 0 && C == 0 && R == 1) {
-
-    calc_speed(0.5, -0.5, 0, 80);
-  }
-  else if (L == 1 && C == 1 && R == 0) {
-
-    calc_speed(0, -1, 0, 80);
-  }
-  else if (L == 0 && C == 1 && R == 1) {
-    calc_speed(0, 1, 0, 80);
-  }
-  else if (L == 1 && C == 1 && R == 1) {
-
-    calc_speed(0, 0, 0, 0); 
-  }
-  delay(100);
-}
-
-
 String Rasp_Data(){
    // Verifica se há dados disponíveis para leitura
     if (raspy.available() > 0) {
@@ -285,75 +183,149 @@ String Rasp_Data(){
     return receivedData;
 }
 
-void service_table(){
+void claw_hight(int altura){
 
 }
 
-void precision_table(){
-
-}
-
-void container_table(){
-
-}
-
-void shelve(){
-
-}
-
-void Start(){
-  while (F2.getDistance() > 10){
-    calc_speed(1,0,0,110);
-    delay(1000);
+void Container_table(String cor){
+  while(L1.getDistance() > 10){
+    calc_speed(0,-1,0,PWM_X);
   }
-  service_table(); 
-  while (!IR_C.isLineDetected()){
-    calc_speed(0,1,0,110);
-    delay(1000);
-  }
-    calc_speed(1,1,1,110);
-    delay(FULL_TURN);
-}
-
-void Finish(bool shelve){
-  int L = IR_L.isLineDetected();
-  int R = IR_R.isLineDetected();
-  if (shelve){
-    if(L){
-      while (F2.getDistance()> 10){
-        calc_speed(1,0,0,110);
-      }
-    }
-  }
-  else{
-    if(R){
-      calc_speed(1,1,1,100);
-      delay(QUARTER_TURN);
+  while(F2.getDistance() < 18){
+    while(claw_Color.identificarCor() == cor ){
+      calc_speed(0,1,0,PWM_X);
+      delay(CUBE);
+      claw.write(OPEN);
+      delay(1000);
     }
   }
 }
 
-void case_base(){
-  Start();
-  int bifurcation = 1; 
-  follow_line(bifurcation);
-  //  Insert here the desired table
-  // Usually were gonna have more than 1 table,
-  bool shelve = false;
-  Finish(shelve);
+void finish() {
+  motor.forward(80);
+  delay(100);
+  calc_speed(1,0,0,PWM_X);
+  delay(1000);
+  calc_speed(0,0,1,PWM_X);
+  delay(1000);
+  calc_speed(1,0,0,PWM_X);
+  
+  delay(1000);
 }
 
-void loop(){
-
-  int ri, g, b;
-  color_Clawn.readColor(&ri,&g,&b);
-
-  if(ri >= 8){
-    Serial.println("EH LINHA PORRA, BORA BORA");
-  }
-  else{
-    Serial.println("Eh esse branco vei paia...");
+void service_table(String *A){
+  String color = "";
+  //claw_hight(15);
+  while(R1.getDistance() >= 10){
+    calc_speed(0,-1,0,PWM_X);
   }
 
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+  calc_speed(0,1,0,PWM_Y);
+  delay(3000);
+
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+  calc_speed(0,1,0, PWM_Y);
+  delay(100000); //teste
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+  calc_speed(0,0,1,70);
+  delay(HALF_TURN);
+
+  calc_speed(0,1,0, PWM_Y);
+  delay(10000);
+
+  calc_speed(0,0,0,0);
+  delay(10000);
+
+  calc_speed(1,0,0,PWM_Y);
+  delay(1000);
+
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+  calc_speed(0,-1,0,PWM_Y);
+  delay(4000);
+
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+  calc_speed(1,0,0,PWM_X);
+  delay(3000);
+
+  calc_speed(0,1,0, PWM_X);
+  delay(2000);
+  
+  calc_speed(0,0,0,0);
+  delay(1000);
+
+}
+
+void start(){
+  int L, C, R;
+
+  teste_Cent.lerCores();
+  teste_Dir.lerCores();
+  teste_Esq.lerCores();
+
+  if(teste_Esq.getVermelho() >= 8) L = 1;
+  else L = 0;
+
+  if(teste_Cent.getVermelho() >= 8) C = 1;
+  else C = 0;
+
+  if(teste_Dir.getVermelho()>= 8) R = 1;
+  else R = 0;
+
+  while(int(F1.getDistance()) > 15){
+    calc_speed(1,0,0,PWM_X);
+  }
+  calc_speed(0,0,0,0);
+
+  String Cor_cubo;
+  service_table(&Cor_cubo);
+  while((!L  && C)&& !R){
+    calc_speed(1,0,0,100);
+  }
+  while((!L  && C)&& !R){
+    calc_speed(0,0,1,180);
+  }
+  //follow_line();
+}
+
+void run1(){
+  int L, C, R;
+
+  while(int(F1.getDistance()) > 15){
+    calc_speed(1,0,0,PWM_X);
+  }
+  calc_speed(0,0,0,0);
+
+  String Cor_cubo;
+  service_table(&Cor_cubo);
+  
+
+  //follow_line();
+}
+
+void setup() {
+  Serial.begin(9600);
+  motor.begin();
+  claw.attach(35);
+}
+
+bool passou = true;
+
+void loop() {
+  motor.forward(70);
+  delay(100);
+  motor.stop();
+
+  delay(1000);
 
 }
