@@ -1,12 +1,17 @@
 #include <Arduino.h>
 #include <DC_Motor.h>
 #include <Servo.h>
-#include <Color_Sensor.h>
 #include <Ultrassonic_Sensor.h>
-#include <IRSensor.h>
 #include <SoftwareSerial.h>
 #include "L298N.h"
-#include <cor2.h>
+#include <RunningAverage.h>
+#include <BTS7960.h>
+
+#include "../src/controleGeral/seguidorLinha.h"
+#include "../src/controleGeral/cinematicaRobo.h"
+#include "../src/controleGeral/sensoresCor.h"
+    
+
 
 
 // Definiçao de portas    (orientação baseada na garra)
@@ -14,31 +19,35 @@
 // Motor front 
 const int Front_LPWM = 11;
 const int Front_RPWM = 10;
+const int Right_RPWM = 4;
+const int Right_LPWM = 5;
+const int Left_RPWM = 6;
+const int Left_LPWM = 7;
+const int Back_RPWM = 8;
+const int Back_LPWM = 9;
+
+
+
+
 const int EncA_F = 1 ;
 const int EncB_F = 1;
 
-MotorDC FM(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
 
 // Motor Right
-const int Right_RPWM = 4;
-const int Right_LPWM = 5;
 const int EncA_R = 1;
 const int EncB_R = 1;
 
-MotorDC RM(EncA_R, EncB_R, Right_RPWM, Right_LPWM);
 
 // Motor Left
-const int Left_RPWM = 6;
-const int Left_LPWM = 7;
 const int EncA_L = 1;
 const int EncB_L = 1;
-MotorDC LM(EncA_L, EncB_L, Left_RPWM, Left_LPWM);
 
 // Motor back
-const int Back_RPWM = 8;
-const int Back_LPWM = 9;
 const int EncA_B = 1;
 const int EncB_B = 1;
+MotorDC FrontMotor(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
+MotorDC RM(EncA_R, EncB_R, Right_RPWM, Right_LPWM);
+MotorDC LM(EncA_L, EncB_L, Left_RPWM, Left_LPWM);
 MotorDC BM(EncA_B, EncB_B, Back_RPWM, Back_LPWM);
 
 // ULtrassonic Sensor
@@ -49,20 +58,18 @@ Sensor F2(A3, A2);
 
 Sensor F3(A5, A4);
 
-Sensor R1(A11, A10);
+Sensor R2(A11, A10);
 
 Sensor R2I(A13, A12);
 
-Sensor R2(A15, A14);
+Sensor R3(A15, A14);
 
 Sensor L1(A7, A6);
 
 Sensor L2(A9, A8);
 
-
-
-const int claw_trig = 37;
-const int claw_echo = 39;
+const int claw_trig = 39;
+const int claw_echo = 37;
 Sensor claw_sensor(claw_trig, claw_echo);
 
 // Color Sensor
@@ -72,7 +79,6 @@ SensorCorTCS230 teste_Cent(40, 38, 34, 42, 36);
 SensorCorTCS230 teste_Esq(50, 52, 48, 44, 46);
 SensorCorTCS230 claw_Color(29, 31, 25, 23, 27);
 
-
 L298N motor(3, 2);
 
 // Global Variables
@@ -81,22 +87,27 @@ String receivedData = ""; // Armazena a mensagem recebida
 
 Servo claw;
 
+RunningAverage mediaSensorFrente(3);  // Janela de 10 leituras
+RunningAverage mediaSensorEsquerdo(3);  // Janela de 10 leituras
+RunningAverage mediaSensorDireito(3);  // Janela de 10 leituras
+
 const int QUARTER_TURN  = 1000;
 const int HALF_TURN = 10000;
 const long FULL_TURN = 100000;
 const int RUN_TIME = 1000;
-const int PWM_X = 70;
-const int PWM_Y = 70;
+const int PWM_X = 80;
+const int PWM_Y = 80;
 const int OPEN = 0;
 const int CLOSED = 100;
 const int CUBE = 10;
-const int Limite_E = 35;
-const int Limite_D = 35;
-const int Limite_e = 35;
+const int Limite_E = 120;
+const int Limite_D = 180;
+const int Limite_C = 70;
+const int VALOR_PAREDE = 10; 
 float R = 0.15;
 
-
-void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x ) {
+void calc_speed2(float x_dot, float y_dot, float theta_dot , float scale_x ) {
+  
   // Calcula o PWM para cada roda
   float pwmFrente   = -R * theta_dot - y_dot;
   float pwmDireito  = R * theta_dot + x_dot;
@@ -117,11 +128,11 @@ void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x ) {
 
   // Aplica direção e velocidade para o motor da frente
   if (dirFrente == 1) { // Movimento para frente
-    FM.turn_on_motor(FORWARD, pwmFrente);
+    FrontMotor.turn_on_motor(FORWARD, pwmFrente);
   } else if (dirFrente == -1) { // Movimento para trás
-    FM.turn_on_motor(REVERSE, pwmFrente);
+    FrontMotor.turn_on_motor(REVERSE, pwmFrente);
   } else { // Parado
-    FM.move_straight(STOP);
+    FrontMotor.move_straight(STOP);
   }
 
   // Aplica direção e velocidade para o motor da direita
@@ -153,6 +164,7 @@ void calc_speed(float x_dot, float y_dot, float theta_dot , float scale_x ) {
 
 }
 
+
 String Rasp_Data(){
    // Verifica se há dados disponíveis para leitura
     if (raspy.available() > 0) {
@@ -183,149 +195,170 @@ String Rasp_Data(){
     return receivedData;
 }
 
-void claw_hight(int altura){
-
-}
-
-void Container_table(String cor){
-  while(L1.getDistance() > 10){
-    calc_speed(0,-1,0,PWM_X);
-  }
-  while(F2.getDistance() < 18){
-    while(claw_Color.identificarCor() == cor ){
-      calc_speed(0,1,0,PWM_X);
-      delay(CUBE);
-      claw.write(OPEN);
-      delay(1000);
-    }
-  }
-}
-
 void finish() {
   motor.forward(80);
   delay(100);
-  calc_speed(1,0,0,PWM_X);
+  calc_speed2(1,0,0,PWM_X);
   delay(1000);
-  calc_speed(0,0,1,PWM_X);
+  calc_speed2(0,0,1,PWM_X);
   delay(1000);
-  calc_speed(1,0,0,PWM_X);
+  calc_speed2(1,0,0,PWM_X);
   
   delay(1000);
-}
-
-void service_table(String *A){
-  String color = "";
-  //claw_hight(15);
-  while(R1.getDistance() >= 10){
-    calc_speed(0,-1,0,PWM_X);
-  }
-
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-  calc_speed(0,1,0,PWM_Y);
-  delay(3000);
-
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-  calc_speed(0,1,0, PWM_Y);
-  delay(100000); //teste
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-  calc_speed(0,0,1,70);
-  delay(HALF_TURN);
-
-  calc_speed(0,1,0, PWM_Y);
-  delay(10000);
-
-  calc_speed(0,0,0,0);
-  delay(10000);
-
-  calc_speed(1,0,0,PWM_Y);
-  delay(1000);
-
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-  calc_speed(0,-1,0,PWM_Y);
-  delay(4000);
-
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-  calc_speed(1,0,0,PWM_X);
-  delay(3000);
-
-  calc_speed(0,1,0, PWM_X);
-  delay(2000);
-  
-  calc_speed(0,0,0,0);
-  delay(1000);
-
-}
-
-void start(){
-  int L, C, R;
-
-  teste_Cent.lerCores();
-  teste_Dir.lerCores();
-  teste_Esq.lerCores();
-
-  if(teste_Esq.getVermelho() >= 8) L = 1;
-  else L = 0;
-
-  if(teste_Cent.getVermelho() >= 8) C = 1;
-  else C = 0;
-
-  if(teste_Dir.getVermelho()>= 8) R = 1;
-  else R = 0;
-
-  while(int(F1.getDistance()) > 15){
-    calc_speed(1,0,0,PWM_X);
-  }
-  calc_speed(0,0,0,0);
-
-  String Cor_cubo;
-  service_table(&Cor_cubo);
-  while((!L  && C)&& !R){
-    calc_speed(1,0,0,100);
-  }
-  while((!L  && C)&& !R){
-    calc_speed(0,0,1,180);
-  }
-  //follow_line();
-}
-
-void run1(){
-  int L, C, R;
-
-  while(int(F1.getDistance()) > 15){
-    calc_speed(1,0,0,PWM_X);
-  }
-  calc_speed(0,0,0,0);
-
-  String Cor_cubo;
-  service_table(&Cor_cubo);
-  
-
-  //follow_line();
 }
 
 void setup() {
   Serial.begin(9600);
   motor.begin();
   claw.attach(35);
+  claw.write(OPEN);
 }
-
 bool passou = true;
+/*
+void follow_line() {
+  // Ler as cores detectadas pelos sensores
+  teste_Cent.lerCores();
+  teste_Dir.lerCores();
+  teste_Esq.lerCores();
 
-void loop() {
-  motor.forward(70);
-  delay(100);
-  motor.stop();
+  bool linhaCentro = teste_Cent.getVermelho() + teste_Cent.getAzul() + teste_Cent.getVerde() > Limite_C; 
+  bool linhaEsquerda = teste_Esq.getVermelho() + teste_Esq.getAzul() + teste_Esq.getVerde() > Limite_E; 
+  bool linhaDireita = teste_Dir.getVermelho() + teste_Dir.getAzul() + teste_Dir.getVerde() > Limite_D; 
 
-  delay(1000);
+  if (linhaCentro && !linhaEsquerda && !linhaDireita) {
+    calc_speed2(1,0, 0, PWM_X);
+
+  } else if (!linhaCentro && linhaEsquerda) {
+    calc_speed2(0, -1, 0, PWM_X);
+
+  } else if (!linhaCentro && linhaDireita) {
+    calc_speed2(0, 1, 0, PWM_X);
+
+  } else if (linhaCentro && linhaEsquerda && linhaDireita) {
+    while(!linhaCentro){
+      calc_speed2(0, 0, 1, PWM_X);
+    }
+  
+  } else if (linhaCentro && linhaEsquerda && !linhaDireita) {
+    while(!linhaCentro){
+      calc_speed2(0, 0, -1, PWM_X);
+
+    }
+
+  } else if (linhaCentro && !linhaEsquerda && linhaDireita) {
+    while(!linhaCentro){
+      calc_speed2(0, 0, 1, PWM_X);
+    }
+  }
 
 }
+*/
+void pega_cubo(){
+
+  claw.write(OPEN);
+  delay(2000);
+
+  while(claw_sensor.getDistance() > 20 ){
+    calc_speed2(0,0,0,0);
+    delay(500);  
+
+    calc_speed2(0,-1,0,PWM_Y);
+    delay(100);        
+  }
+  //calc_speed2(0,-1,0,PWM_X);
+  //delay(250);
+
+  calc_speed2(0,0,0,0);
+  delay(2000);
+  
+  while(claw_sensor.getDistance() > 2){
+    calc_speed2(0,0,0,0);
+    delay(100);
+
+    calc_speed2(1,0,0,PWM_X);
+    delay(100);
+    
+  }
+
+  //calc_speed2(1,0,0,PWM_X);
+  //delay(400);
+
+  claw.write(CLOSED);
+  delay(1000);
+  
+}
+
+
+void loop(){
+  calc_speed2(1,0,0,PWM_X);
+  delay(1000);
+  while (F1.getDistance() > 10)
+  {
+    calc_speed2(1,0,0,PWM_X);
+    delay(150);
+    calc_speed2(0,0,0,0);
+    delay(150);
+
+    if(R2.getDistance() < 5 and R2I.getDistance() > 5){
+      BM.turn_on_motor(FORWARD, 100);
+      delay(150);
+
+    }
+    else if (R2.getDistance() < R2I.getDistance()){
+      FrontMotor.turn_on_motor(FORWARD,100);
+      delay(150);
+    } 
+  }
+
+  while(R2.getDistance() >= 5){
+    calc_speed2(0,0,0,0);
+    delay(100);
+    calc_speed2(0,1,0,PWM_Y);
+    delay(100);
+  }
+
+  pega_cubo();
+
+  while (F1.getDistance() < 23)
+  {
+    calc_speed2(-1,0,0,PWM_X);
+    delay(150);
+    calc_speed2(0,0,0,0);
+    delay(150);
+
+    if(R2.getDistance() < 5 and R2I.getDistance() > 5){
+      BM.turn_on_motor(FORWARD, 100);
+      delay(150);
+
+    }
+    else if (R2.getDistance() < R2I.getDistance()){
+      FrontMotor.turn_on_motor(FORWARD,100);
+      delay(150);
+    }
+  }
+  procurarReferenciaGirando_EZ();
+  PID();
+
+
+
+  //while(true){
+
+    //calc_speed2(0,-1,0,65);
+    //podedemos colocar o tempo aqui
+
+    //if(sensores de cor reornarem algo ){
+      //claw.write(OPEN);
+      //voltar e fazer alinhamento( novamente);
+    //}
+
+    //contador+=1;
+    //if(contador==4){
+      //finish
+      //virar e andar até a parede e virar a esqueda andar e fim.
+    //}
+    
+  //}
+
+}
+
+

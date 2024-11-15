@@ -1,11 +1,11 @@
-class SensorCorTCS230 {
+class SensorCorTCS23 {
   private:
     int pinoS0, pinoS1, pinoS2, pinoS3, pinoOut;
     int vermelho, verde, azul;
 
   public:
     // Construtor que recebe os pinos como argumentos
-    SensorCorTCS230(int s0, int s1, int s2, int s3, int out) 
+    SensorCorTCS23(int s0, int s1, int s2, int s3, int out) 
       : pinoS0(s0), pinoS1(s1), pinoS2(s2), pinoS3(s3), pinoOut(out) {
       pinMode(pinoS0, OUTPUT);
       pinMode(pinoS1, OUTPUT);
