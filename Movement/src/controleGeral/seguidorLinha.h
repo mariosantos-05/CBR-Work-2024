@@ -55,5 +55,7 @@ void procurarReferenciaGirando_EZ ();
 void primeiraVirada ();
 void SegundaVirada ();
 void terceiraVirada ();
+int retornaSensor ();
+ void limpaMedia() ;
 
 #endif // HEADER_H

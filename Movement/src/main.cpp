@@ -6,17 +6,23 @@
 #include "L298N.h"
 #include <RunningAverage.h>
 #include <BTS7960.h>
-
 #include "../src/controleGeral/seguidorLinha.h"
 #include "../src/controleGeral/cinematicaRobo.h"
 #include "../src/controleGeral/sensoresCor.h"
     
 
+// Pin definition (using as ref the claw)
 
+// Were not using Encoder, so just a random pin 
+const int EncA_F = 1 ;
+const int EncB_F = 1;
+const int EncA_R = 1;
+const int EncB_R = 1;
+const int EncA_L = 1;
+const int EncB_L = 1;
+const int EncA_B = 1;
+const int EncB_B = 1;
 
-// Definiçao de portas    (orientação baseada na garra)
-
-// Motor front 
 const int Front_LPWM = 11;
 const int Front_RPWM = 10;
 const int Right_RPWM = 4;
@@ -25,27 +31,7 @@ const int Left_RPWM = 6;
 const int Left_LPWM = 7;
 const int Back_RPWM = 8;
 const int Back_LPWM = 9;
-
-
-
-
-const int EncA_F = 1 ;
-const int EncB_F = 1;
-
-
-// Motor Right
-const int EncA_R = 1;
-const int EncB_R = 1;
-
-
-// Motor Left
-const int EncA_L = 1;
-const int EncB_L = 1;
-
-// Motor back
-const int EncA_B = 1;
-const int EncB_B = 1;
-MotorDC FrontMotor(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
+MotorDC FM(EncA_F, EncB_F, Front_RPWM, Front_LPWM);
 MotorDC RM(EncA_R, EncB_R, Right_RPWM, Right_LPWM);
 MotorDC LM(EncA_L, EncB_L, Left_RPWM, Left_LPWM);
 MotorDC BM(EncA_B, EncB_B, Back_RPWM, Back_LPWM);
@@ -87,10 +73,6 @@ String receivedData = ""; // Armazena a mensagem recebida
 
 Servo claw;
 
-RunningAverage mediaSensorFrente(3);  // Janela de 10 leituras
-RunningAverage mediaSensorEsquerdo(3);  // Janela de 10 leituras
-RunningAverage mediaSensorDireito(3);  // Janela de 10 leituras
-
 const int QUARTER_TURN  = 1000;
 const int HALF_TURN = 10000;
 const long FULL_TURN = 100000;
@@ -103,7 +85,6 @@ const int CUBE = 10;
 const int Limite_E = 120;
 const int Limite_D = 180;
 const int Limite_C = 70;
-const int VALOR_PAREDE = 10; 
 float R = 0.15;
 
 void calc_speed2(float x_dot, float y_dot, float theta_dot , float scale_x ) {
@@ -128,11 +109,11 @@ void calc_speed2(float x_dot, float y_dot, float theta_dot , float scale_x ) {
 
   // Aplica direção e velocidade para o motor da frente
   if (dirFrente == 1) { // Movimento para frente
-    FrontMotor.turn_on_motor(FORWARD, pwmFrente);
+    FM.turn_on_motor(FORWARD, pwmFrente);
   } else if (dirFrente == -1) { // Movimento para trás
-    FrontMotor.turn_on_motor(REVERSE, pwmFrente);
+    FM.turn_on_motor(REVERSE, pwmFrente);
   } else { // Parado
-    FrontMotor.move_straight(STOP);
+    FM.move_straight(STOP);
   }
 
   // Aplica direção e velocidade para o motor da direita
@@ -163,7 +144,6 @@ void calc_speed2(float x_dot, float y_dot, float theta_dot , float scale_x ) {
   }
 
 }
-
 
 String Rasp_Data(){
    // Verifica se há dados disponíveis para leitura
@@ -212,48 +192,10 @@ void setup() {
   motor.begin();
   claw.attach(35);
   claw.write(OPEN);
+  limpaMedia();
 }
-bool passou = true;
-/*
-void follow_line() {
-  // Ler as cores detectadas pelos sensores
-  teste_Cent.lerCores();
-  teste_Dir.lerCores();
-  teste_Esq.lerCores();
 
-  bool linhaCentro = teste_Cent.getVermelho() + teste_Cent.getAzul() + teste_Cent.getVerde() > Limite_C; 
-  bool linhaEsquerda = teste_Esq.getVermelho() + teste_Esq.getAzul() + teste_Esq.getVerde() > Limite_E; 
-  bool linhaDireita = teste_Dir.getVermelho() + teste_Dir.getAzul() + teste_Dir.getVerde() > Limite_D; 
-
-  if (linhaCentro && !linhaEsquerda && !linhaDireita) {
-    calc_speed2(1,0, 0, PWM_X);
-
-  } else if (!linhaCentro && linhaEsquerda) {
-    calc_speed2(0, -1, 0, PWM_X);
-
-  } else if (!linhaCentro && linhaDireita) {
-    calc_speed2(0, 1, 0, PWM_X);
-
-  } else if (linhaCentro && linhaEsquerda && linhaDireita) {
-    while(!linhaCentro){
-      calc_speed2(0, 0, 1, PWM_X);
-    }
-  
-  } else if (linhaCentro && linhaEsquerda && !linhaDireita) {
-    while(!linhaCentro){
-      calc_speed2(0, 0, -1, PWM_X);
-
-    }
-
-  } else if (linhaCentro && !linhaEsquerda && linhaDireita) {
-    while(!linhaCentro){
-      calc_speed2(0, 0, 1, PWM_X);
-    }
-  }
-
-}
-*/
-void pega_cubo(){
+bool pega_cubo(){
 
   claw.write(OPEN);
   delay(2000);
@@ -263,36 +205,44 @@ void pega_cubo(){
     delay(500);  
 
     calc_speed2(0,-1,0,PWM_Y);
-    delay(100);        
+    delay(100); 
   }
-  //calc_speed2(0,-1,0,PWM_X);
-  //delay(250);
+  
 
   calc_speed2(0,0,0,0);
   delay(2000);
   
+  unsigned long T1 = millis();
+  unsigned long T2;
   while(claw_sensor.getDistance() > 2){
     calc_speed2(0,0,0,0);
     delay(100);
-
     calc_speed2(1,0,0,PWM_X);
     delay(100);
+    T2 = millis();;
+    if(T2-T1 > 8000 and claw_sensor.getDistance()>8){
+      calc_speed2(-1,0,0,PWM_X);
+      delay(1000);
+      while (F1.getDistance() > 19){
+        calc_speed2(1,0,0,PWM_X);
+        delay(150);
+        calc_speed2(0,0,0,0);
+        delay(150);
+      }
+      return 0;
     
+    }
   }
 
-  //calc_speed2(1,0,0,PWM_X);
-  //delay(400);
-
-  claw.write(CLOSED);
-  delay(1000);
-  
+  return 1;
 }
 
-
 void loop(){
+  // bm forward é direita
+  // fm forward é esquerda
   calc_speed2(1,0,0,PWM_X);
   delay(1000);
-  while (F1.getDistance() > 10)
+  while (F1.getDistance() > 20)
   {
     calc_speed2(1,0,0,PWM_X);
     delay(150);
@@ -301,63 +251,36 @@ void loop(){
 
     if(R2.getDistance() < 5 and R2I.getDistance() > 5){
       BM.turn_on_motor(FORWARD, 100);
-      delay(150);
+      delay(100);
 
     }
     else if (R2.getDistance() < R2I.getDistance()){
-      FrontMotor.turn_on_motor(FORWARD,100);
-      delay(150);
+      FM.turn_on_motor(FORWARD,100);
+      delay(100);
     } 
   }
 
-  while(R2.getDistance() >= 5){
-    calc_speed2(0,0,0,0);
-    delay(100);
-    calc_speed2(0,1,0,PWM_Y);
-    delay(100);
-  }
 
-  pega_cubo();
+  bool pegou = pega_cubo();
+  while(!pegou)
+    pegou = pega_cubo();
+  
+  claw.write(CLOSED);
+  delay(1000);
 
-  while (F1.getDistance() < 23)
-  {
-    calc_speed2(-1,0,0,PWM_X);
-    delay(150);
-    calc_speed2(0,0,0,0);
-    delay(150);
+  calc_speed2(-1,0,0,PWM_X);
+  delay(1000);
 
-    if(R2.getDistance() < 5 and R2I.getDistance() > 5){
-      BM.turn_on_motor(FORWARD, 100);
-      delay(150);
+  calc_speed2(0,0,0,0);
+  delay(1000);
 
-    }
-    else if (R2.getDistance() < R2I.getDistance()){
-      FrontMotor.turn_on_motor(FORWARD,100);
-      delay(150);
-    }
-  }
-  procurarReferenciaGirando_EZ();
-  PID();
+  calc_speed2(0,-1,0,PWM_X);
+  delay(3500);
 
 
+  calc_speed2(1,0,0,PWM_X);
+  delay(1000);
 
-  //while(true){
-
-    //calc_speed2(0,-1,0,65);
-    //podedemos colocar o tempo aqui
-
-    //if(sensores de cor reornarem algo ){
-      //claw.write(OPEN);
-      //voltar e fazer alinhamento( novamente);
-    //}
-
-    //contador+=1;
-    //if(contador==4){
-      //finish
-      //virar e andar até a parede e virar a esqueda andar e fim.
-    //}
-    
-  //}
 
 }
 

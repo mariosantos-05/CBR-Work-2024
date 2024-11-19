@@ -81,6 +81,9 @@ int retornaErro() {
 
 
 void PID() {
+  mediaSensorDireito.clear();
+  mediaSensorEsquerdo.clear();
+  mediaSensorFrente.clear();
   static int erro_anterior = 0;
   static int somatoriaErro = 0;
   const int pwmInicial = 60;  // Valor inicial de PWM (ajuste conforme necessário)
@@ -141,9 +144,7 @@ void procurarReferenciaLateral() {
 
 void procurarReferenciaGirando_EZ() {
   
-  mediaSensorFrente.clear();
-  mediaSensorEsquerdo.clear();
-  mediaSensorDireito.clear();
+
 
 
   Serial.println(mediaSensorFrente.getAverage());
@@ -264,3 +265,14 @@ void alinharParedeControl() {
     }
 }*/
 
+  int retornaSensor (){
+    sensorMeio.lerCores();
+    return sensorMeio.getVermelho();
+  }
+
+  void limpaMedia(){
+  mediaSensorFrente.clear();
+  mediaSensorEsquerdo.clear();
+  mediaSensorDireito.clear();
+
+  }
