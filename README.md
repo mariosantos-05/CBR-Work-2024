@@ -11,7 +11,7 @@ Repositório destinado à programação do robô **Jabu** que foi desenvolvido e
 - **Movimento**: C/C++, PlatformIO
 - **Placas**: Arduino mega 2560, Raspeberry pi
 
-## Estrutura do Projeto (sugestão)
+## Estrutura do Projeto 
 
 - `vision/`: Scripts de visão computacional
   - `python scripts/`: main.py
